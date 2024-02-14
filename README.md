@@ -36,4 +36,4 @@ Few of the dependencies may be outdated and need selective updates. Do debug acc
 ### Contributing
 
 Contributions are welcome! If you have suggestions for improving this application, please open an issue or submit a pull request.
-if you want to visit orignal source code of author: https://github.com/sudan94/chat-with-pdf-doc
+If you want to visit orignal source code of author: https://github.com/sudan94/chat-with-pdf-doc
