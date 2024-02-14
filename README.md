@@ -12,7 +12,7 @@ Few of the dependencies may be outdated and need selective updates. Do debug acc
 
 1. Run the application:
 
-   streamlit run main.py
+   streamlit run app.py
 
 2. Once the application is running, you'll see a Streamlit interface with options to upload files, enter your OpenAI API key, and process the uploaded files.
 
