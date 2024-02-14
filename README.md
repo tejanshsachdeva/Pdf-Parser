@@ -1,4 +1,4 @@
-**Chat With Any Files**
+### Chat With Any Files
 
 This application allows users to upload PDF or DOCX files, process them to extract text, and ask questions about the content of those files. The questions are answered using an AI-powered chatbot, either based on OpenAI's GPT-3.5 model or Hugging Face's conversational models.
 
