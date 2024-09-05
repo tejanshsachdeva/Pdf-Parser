@@ -4,6 +4,7 @@ from PyPDF2 import PdfReader
 import docx
 import numpy as np
 import pandas as pd
+from datetime import datetime
 from langchain.chat_models import ChatOpenAI
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.embeddings.huggingface import HuggingFaceEmbeddings
@@ -18,7 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Constants
-CHUNK_SIZE = 900
+CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 100
 MODEL_NAME = 'gpt-3.5-turbo'
 TEMPERATURE = 0
@@ -139,25 +140,29 @@ def get_docx_text(file):
 
 def get_excel_text(file):
     try:
-        df_dict = pd.read_excel(file, sheet_name=None)
+        # Read Excel file
+        xls = pd.ExcelFile(file)
         text = ""
-        for sheet_name, df in df_dict.items():
+
+        for sheet_name in xls.sheet_names:
             text += f"\nSheet: {sheet_name}\n"
-            text += df.to_string(index=False) + "\n"
             
-            # Add basic statistics
-            text += f"\nBasic Statistics for {sheet_name}:\n"
-            text += df.describe().to_string() + "\n"
+            # Read the entire sheet
+            df = pd.read_excel(xls, sheet_name=sheet_name)
             
-            # Add correlation information
-            if df.select_dtypes(include=[np.number]).shape[1] > 1:
-                text += f"\nCorrelations in {sheet_name}:\n"
-                text += df.corr().to_string() + "\n"
+            # Process the dataframe in chunks to avoid memory issues
+            chunk_size = 1000
+            for i in range(0, len(df), chunk_size):
+                chunk = df.iloc[i:i+chunk_size]
+                for _, row in chunk.iterrows():
+                    # Convert row to string, handling various data types
+                    row_text = ", ".join([f"{col}: {process_cell(val)}" for col, val in row.items()])
+                    text += row_text + "\n"
             
-            # Add information about unique values in each column
-            for column in df.columns:
-                unique_values = df[column].nunique()
-                text += f"\nUnique values in {column}: {unique_values}\n"
+            # Add basic sheet statistics
+            text += f"\nSheet Statistics:\n"
+            text += f"Rows: {df.shape[0]}, Columns: {df.shape[1]}\n"
+            text += f"Column Names: {', '.join(df.columns)}\n"
 
         st.session_state.debug_info += f"Excel text extracted, length: {len(text)}\n"
         return text
@@ -166,22 +171,36 @@ def get_excel_text(file):
         st.session_state.debug_info += f"Error reading Excel: {str(e)}\n"
         return ""
 
+def process_cell(val):
+    if pd.isna(val):
+        return "N/A"
+    elif isinstance(val, datetime):
+        return val.strftime('%d %B %Y')
+    elif isinstance(val, (int, float)):
+        return f"{val:,}"
+    else:
+        return str(val)
+
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
 def get_text_chunks(text):
-    text_splitter = CharacterTextSplitter(
-        separator="\n",
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-        length_function=len
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200,
+        length_function=len,
+        separators=["\n\n", "\n", " ", ""]
     )
     chunks = text_splitter.split_text(text)
     st.session_state.debug_info += f"Text split into {len(chunks)} chunks\n"
     return chunks
 
+from langchain.vectorstores import Chroma
+
 def get_vectorstore(text_chunks):
     embeddings = HuggingFaceEmbeddings()
     if not text_chunks:
         raise ValueError("No text chunks to process")
-    vectorstore = FAISS.from_texts(text_chunks, embeddings)
+    vectorstore = Chroma.from_texts(texts=text_chunks, embedding=embeddings)
     st.session_state.debug_info += f"Vectorstore created with {len(text_chunks)} chunks\n"
     return vectorstore
 
