@@ -1,39 +1,78 @@
-### Chat With Any Files
+# Pdf-Parser
 
-This application allows users to upload PDF or DOCX files, process them to extract text, and ask questions about the content of those files. The questions are answered using an AI-powered chatbot, either based on OpenAI's GPT-3.5 model or Hugging Face's conversational models.
+Pdf-Parser is a Streamlit-based application that allows users to upload and analyze various document types, including PDFs, Word documents, and Excel files. It uses natural language processing to answer questions about the uploaded documents.
 
-### Installation
+## Features
 
-Clone and then Install dependencies:
-pip install -r requirements.txt
-Few of the dependencies may be outdated and need selective updates. Do debug accordingly.
+- Support for PDF, DOCX, and Excel (.xlsx, .xls) files
+- Multiple file upload
+- Natural language question answering about the document content
+- Conversation history
+- Debug information display
 
-### Usage
+## Installation
 
-1. Run the application:
+1. Clone the repository:
+   ```
+   git clone https://github.com/tejanshsachdeva/Pdf-Parser.git
+   cd Pdf-Parser
+   ```
 
+2. Install the required packages:
+   ```
+   pip install -r requirements.txt
+   ```
+
+3. Set up your environment variables:
+   Create a `.env` file in the root directory and add your OpenAI API key:
+   ```
+   OPENAI_API_KEY=your_api_key_here
+   ```
+
+## Usage
+
+1. Run the Streamlit app:
+   ```
    streamlit run app.py
+   ```
 
-2. Once the application is running, you'll see a Streamlit interface with options to upload files, enter your OpenAI API key, and process the uploaded files.
+2. Open your web browser and go to the URL displayed in the terminal (usually `http://localhost:8501`).
 
-3. Upload PDF or DOCX files containing text that you want to inquire about.
+3. Use the sidebar to upload your documents (PDF, DOCX, or Excel files).
 
-4. Enter your OpenAI API key in the provided text input field.
+4. Ask questions about the uploaded documents in the chat interface.
 
-5. Click the "Process" button to start the processing of uploaded files.
+5. View the conversation history and debug information as needed.
 
-6. Once the processing is complete, you can ask questions about the uploaded files in the chat interface provided.
+## File Structure
 
-### Functionality
+- `app.py`: Main application file containing the Streamlit interface and document processing logic.
+- `requirements.txt`: List of Python packages required for the project.
 
-- **File Upload**: Users can upload PDF or DOCX files containing text.
-- **OpenAI API Integration**: Users can provide their OpenAI API key to utilize the GPT-3.5 model for conversational responses.
-- **Text Extraction**: The application extracts text from uploaded files using PyPDF2 (for PDFs) and python-docx (for DOCX files).
-- **Text Chunking**: Extracted text is split into chunks to accommodate the input size limitations of the AI model.
-- **Conversational AI**: Questions asked by users are answered by the AI-powered chatbot, based on the content of the uploaded files.
-- **Feedback and Metrics**: The application provides information such as total tokens used, prompt tokens, completion tokens, and the total cost incurred (if applicable, for OpenAI).
+## Dependencies
 
-### Contributing
+Main dependencies include:
+- streamlit
+- PyPDF2
+- python-docx
+- openpyxl
+- pandas
+- langchain
+- faiss-cpu
+- sentence-transformers
 
-Contributions are welcome! If you have suggestions for improving this application, please open an issue or submit a pull request.
-If you want to visit orignal source code of author: https://github.com/sudan94/chat-with-pdf-doc
+For a full list of dependencies, see `requirements.txt`.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is open source and available under the [MIT License](LICENSE).
+
+## Contact
+
+Tejansh Sachdeva - [GitHub](https://github.com/tejanshsachdeva)
+
+Project Link: [https://github.com/tejanshsachdeva/Pdf-Parser](https://github.com/tejanshsachdeva/Pdf-Parser)

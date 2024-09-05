@@ -2,137 +2,213 @@ import streamlit as st
 import os
 from PyPDF2 import PdfReader
 import docx
+import numpy as np
+import pandas as pd
 from langchain.chat_models import ChatOpenAI
-from langchain.llms import OpenAI
-from dotenv import load_dotenv
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.embeddings.huggingface import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
-from langchain import HuggingFaceHub
-from streamlit_chat import message
+from streamlit_chat import message as st_message
 from langchain.callbacks import get_openai_callback
-from langchain_community.embeddings.huggingface import HuggingFaceEmbeddings
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
 
+# Constants
+CHUNK_SIZE = 900
+CHUNK_OVERLAP = 100
+MODEL_NAME = 'gpt-3.5-turbo'
+TEMPERATURE = 0
 
-
-# "with" notation
 def main():
-    load_dotenv()
-    st.set_page_config(page_title="Chat With any files")
+    st.set_page_config(page_title="Chat With Any Files")
     st.header("Chatbot")
 
+    initialize_session_state()
+    
+    with st.sidebar:
+        uploaded_files = st.file_uploader("Upload your file", type=['pdf', 'docx', 'xlsx'], accept_multiple_files=True)
+        openai_api_key = st.text_input("OpenAI API Key", key="chatbot_api_key", type="password")
+        process = st.button("Process")
+
+    if process:
+        if not uploaded_files:
+            st.warning("Please upload at least one file before processing.")
+        else:
+            st.session_state.processing = True
+            st.session_state.chat_history = []  # Clear chat history
+            st.session_state.conversation = None  # Reset conversation
+            st.session_state.processComplete = False
+            process_files(uploaded_files, openai_api_key)
+            st.session_state.processing = False
+
+    if st.session_state.processing:
+        st.info("Processing files... Please wait.")
+    elif st.session_state.processComplete:
+        user_question = st.chat_input("Ask a question about your files.")
+        if user_question:
+            handle_user_input(user_question)
+    
+    # Display chat history
+    for i, message in enumerate(st.session_state.chat_history):
+        st_message(message.content, is_user=i % 2 == 0, key=str(i))
+
+def initialize_session_state():
     if "conversation" not in st.session_state:
         st.session_state.conversation = None
     if "chat_history" not in st.session_state:
-        st.session_state.chat_history = None
+        st.session_state.chat_history = []
     if "processComplete" not in st.session_state:
-        st.session_state.processComplete = None
+        st.session_state.processComplete = False
+    if "processing" not in st.session_state:
+        st.session_state.processing = False
+    if "debug_info" not in st.session_state:
+        st.session_state.debug_info = ""
 
-    with st.sidebar:
-        uploaded_files =  st.file_uploader("Upload your file",type=['pdf','docx'],accept_multiple_files=True)
-        openai_api_key = st.text_input("OpenAI API Key", key="chatbot_api_key", type="password")
-        process = st.button("Process")
-    if process:
-        if not openai_api_key:
-            st.info("Please add your OpenAI API key to continue.")
-            st.stop()
-        files_text = get_files_text(uploaded_files)
-        # get text chunks
-        text_chunks = get_text_chunks(files_text)
-        # create vetore stores
-        vetorestore = get_vectorstore(text_chunks)
-         # create conversation chain
-        st.session_state.conversation = get_conversation_chain(vetorestore,openai_api_key) #for openAI
-        # st.session_state.conversation = get_conversation_chain(vetorestore) #for huggingface
+def process_files(uploaded_files, openai_api_key):
+    if not openai_api_key:
+        st.info("Please add your OpenAI API key to continue.")
+        st.stop()
+    
+    st.session_state.debug_info = "Starting file processing...\n"
+    files_text = get_files_text(uploaded_files)
+    if not files_text:
+        st.error("No text could be extracted from the uploaded files. Please check the file contents and try again.")
+        return
 
+    st.session_state.debug_info += f"Extracted text length: {len(files_text)}\n"
+    text_chunks = get_text_chunks(files_text)
+    if not text_chunks:
+        st.error("No text chunks were created. The extracted text might be too short.")
+        return
+
+    st.session_state.debug_info += f"Number of text chunks: {len(text_chunks)}\n"
+    try:
+        vectorstore = get_vectorstore(text_chunks)
+        st.session_state.conversation = get_conversation_chain(vectorstore, openai_api_key)
         st.session_state.processComplete = True
+        st.success("Files processed successfully!")
+        st.session_state.debug_info += "Vectorstore and conversation chain created successfully.\n"
+    except Exception as e:
+        st.error(f"An error occurred while processing the files: {str(e)}")
+        st.session_state.debug_info += f"Error during processing: {str(e)}\n"
 
-    if  st.session_state.processComplete == True:
-        user_question = st.chat_input("Ask Question about your files.")
-        if user_question:
-            handel_userinput(user_question)
+    st.expander("Debug Information").text(st.session_state.debug_info)
 
 def get_files_text(uploaded_files):
     text = ""
     for uploaded_file in uploaded_files:
-        split_tup = os.path.splitext(uploaded_file.name)
-        file_extension = split_tup[1]
+        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
         if file_extension == ".pdf":
             text += get_pdf_text(uploaded_file)
         elif file_extension == ".docx":
             text += get_docx_text(uploaded_file)
+        elif file_extension == ".xlsx":
+            text += get_excel_text(uploaded_file)
         else:
-            text += get_csv_text(uploaded_file)
+            st.warning(f"Unsupported file type: {file_extension}")
+        st.session_state.debug_info += f"Processed file: {uploaded_file.name}\n"
     return text
-
 
 def get_pdf_text(pdf):
-    pdf_reader = PdfReader(pdf)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text()
-    return text
+    try:
+        text = ""
+        pdf_reader = PdfReader(pdf)
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+        st.session_state.debug_info += f"PDF text extracted, length: {len(text)}\n"
+        return text
+    except Exception as e:
+        st.error(f"Error reading PDF file: {str(e)}")
+        st.session_state.debug_info += f"Error reading PDF: {str(e)}\n"
+        return ""
 
 def get_docx_text(file):
-    doc = docx.Document(file)
-    allText = []
-    for docpara in doc.paragraphs:
-        allText.append(docpara.text)
-    text = ' '.join(allText)
-    return text
+    try:
+        doc = docx.Document(file)
+        text = ' '.join(para.text for para in doc.paragraphs)
+        st.session_state.debug_info += f"DOCX text extracted, length: {len(text)}\n"
+        return text
+    except Exception as e:
+        st.error(f"Error reading DOCX file: {str(e)}")
+        st.session_state.debug_info += f"Error reading DOCX: {str(e)}\n"
+        return ""
 
-def get_csv_text(file):
-    return "a"
+def get_excel_text(file):
+    try:
+        df_dict = pd.read_excel(file, sheet_name=None)
+        text = ""
+        for sheet_name, df in df_dict.items():
+            text += f"\nSheet: {sheet_name}\n"
+            text += df.to_string(index=False) + "\n"
+            
+            # Add basic statistics
+            text += f"\nBasic Statistics for {sheet_name}:\n"
+            text += df.describe().to_string() + "\n"
+            
+            # Add correlation information
+            if df.select_dtypes(include=[np.number]).shape[1] > 1:
+                text += f"\nCorrelations in {sheet_name}:\n"
+                text += df.corr().to_string() + "\n"
+            
+            # Add information about unique values in each column
+            for column in df.columns:
+                unique_values = df[column].nunique()
+                text += f"\nUnique values in {column}: {unique_values}\n"
 
-def get_text_chunks(text, separator="\n", chunk_size=900, chunk_overlap=100, length_function=len):
+        st.session_state.debug_info += f"Excel text extracted, length: {len(text)}\n"
+        return text
+    except Exception as e:
+        st.error(f"Error reading Excel file: {str(e)}")
+        st.session_state.debug_info += f"Error reading Excel: {str(e)}\n"
+        return ""
+
+def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
-        separator=separator,
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=length_function
+        separator="\n",
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+        length_function=len
     )
     chunks = text_splitter.split_text(text)
+    st.session_state.debug_info += f"Text split into {len(chunks)} chunks\n"
     return chunks
-
 
 def get_vectorstore(text_chunks):
     embeddings = HuggingFaceEmbeddings()
-    knowledge_base = FAISS.from_texts(text_chunks,embeddings)
-    return knowledge_base
+    if not text_chunks:
+        raise ValueError("No text chunks to process")
+    vectorstore = FAISS.from_texts(text_chunks, embeddings)
+    st.session_state.debug_info += f"Vectorstore created with {len(text_chunks)} chunks\n"
+    return vectorstore
 
-def get_conversation_chain(vectorstore, openai_api_key, model_name='gpt-3.5-turbo', temperature=0):
-    if not openai_api_key:
-        raise ValueError("Invalid OpenAI API key")
-    if not vectorstore:
-        raise ValueError("Invalid vectorstore")
-
-    llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=model_name, temperature=temperature)
+def get_conversation_chain(vectorstore, openai_api_key):
+    llm = ChatOpenAI(openai_api_key=openai_api_key, model_name=MODEL_NAME, temperature=TEMPERATURE)
     memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True)
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
         retriever=vectorstore.as_retriever(),
         memory=memory
     )
+    st.session_state.debug_info += "Conversation chain created\n"
     return conversation_chain
 
-def handel_userinput(user_question):
+def handle_user_input(user_question):
+    st.session_state.debug_info += f"User question: {user_question}\n"
     with get_openai_callback() as cb:
-        response = st.session_state.conversation({'question':user_question})
+        response = st.session_state.conversation({'question': user_question})
     st.session_state.chat_history = response['chat_history']
+    st.session_state.debug_info += f"AI response generated, tokens used: {cb.total_tokens}\n"
 
-    response_container = st.container()
+    st.write(f"Total Tokens: {cb.total_tokens}, "
+             f"Prompt Tokens: {cb.prompt_tokens}, "
+             f"Completion Tokens: {cb.completion_tokens}, "
+             f"Total Cost (USD): ${cb.total_cost:.4f}")
 
-    with response_container:
-        for i, messages in enumerate(st.session_state.chat_history):
-            if i % 2 == 0:
-                message(messages.content, is_user=True, key=str(i))
-            else:
-                message(messages.content, key=str(i))
-        st.write(f"Total Tokens: {cb.total_tokens}" f", Prompt Tokens: {cb.prompt_tokens}" f", Completion Tokens: {cb.completion_tokens}" f", Total Cost (USD): ${cb.total_cost}")
-
+    st.expander("Debug Information").text(st.session_state.debug_info)
 
 if __name__ == '__main__':
     main()
