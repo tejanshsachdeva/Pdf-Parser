@@ -5,15 +5,15 @@ import docx
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from langchain.chat_models import ChatOpenAI
+from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI 
+from langchain_community.embeddings import HuggingFaceEmbeddings  
+from langchain_community.vectorstores import FAISS, Chroma 
+from langchain_community.callbacks.manager import get_openai_callback 
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings.huggingface import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from streamlit_chat import message as st_message
-from langchain.callbacks import get_openai_callback
-from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -210,7 +210,7 @@ def get_text_chunks(text):
 from langchain.vectorstores import Chroma
 
 def get_vectorstore(text_chunks):
-    embeddings = HuggingFaceEmbeddings()
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     if not text_chunks:
         raise ValueError("No text chunks to process")
     vectorstore = Chroma.from_texts(texts=text_chunks, embedding=embeddings)
@@ -228,10 +228,12 @@ def get_conversation_chain(vectorstore, openai_api_key):
     st.session_state.debug_info += "Conversation chain created\n"
     return conversation_chain
 
+
 def handle_user_input(user_question):
     st.session_state.debug_info += f"User question: {user_question}\n"
     with get_openai_callback() as cb:
-        response = st.session_state.conversation({'question': user_question})
+        # Use `invoke` instead of `__call__`
+        response = st.session_state.conversation.invoke({'question': user_question})
     st.session_state.chat_history = response['chat_history']
     st.session_state.debug_info += f"AI response generated, tokens used: {cb.total_tokens}\n"
 
