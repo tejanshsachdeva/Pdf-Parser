@@ -7,10 +7,10 @@ import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI 
-from langchain_huggingface import HuggingFaceEmbeddings  # Updated import
-from langchain_community.vectorstores import FAISS, Chroma  # Updated import
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
 from langchain_community.callbacks.manager import get_openai_callback 
-from langchain.text_splitter import RecursiveCharacterTextSplitter  # Updated import
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from streamlit_chat import message as st_message
@@ -209,7 +209,7 @@ def get_vectorstore(text_chunks):
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     if not text_chunks:
         raise ValueError("No text chunks to process")
-    vectorstore = Chroma.from_texts(texts=text_chunks, embedding=embeddings)
+    vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     st.session_state.debug_info += f"Vectorstore created with {len(text_chunks)} chunks\n"
     return vectorstore
 
