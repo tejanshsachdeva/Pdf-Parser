@@ -7,10 +7,10 @@ import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI 
-from langchain_community.embeddings import HuggingFaceEmbeddings  
-from langchain_community.vectorstores import FAISS, Chroma 
+from langchain_huggingface import HuggingFaceEmbeddings  # Updated import
+from langchain_community.vectorstores import FAISS, Chroma  # Updated import
 from langchain_community.callbacks.manager import get_openai_callback 
-from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter  # Updated import
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from streamlit_chat import message as st_message
@@ -194,8 +194,6 @@ def process_cell(val):
     else:
         return str(val)
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-
 def get_text_chunks(text):
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
@@ -206,8 +204,6 @@ def get_text_chunks(text):
     chunks = text_splitter.split_text(text)
     st.session_state.debug_info += f"Text split into {len(chunks)} chunks\n"
     return chunks
-
-from langchain.vectorstores import Chroma
 
 def get_vectorstore(text_chunks):
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
@@ -227,7 +223,6 @@ def get_conversation_chain(vectorstore, openai_api_key):
     )
     st.session_state.debug_info += "Conversation chain created\n"
     return conversation_chain
-
 
 def handle_user_input(user_question):
     st.session_state.debug_info += f"User question: {user_question}\n"
