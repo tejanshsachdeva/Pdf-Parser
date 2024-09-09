@@ -21,8 +21,8 @@ load_dotenv()
 # Constants
 CHUNK_SIZE = 1500
 CHUNK_OVERLAP = 100
-MODEL_NAME = 'gpt-3.5-turbo'
-TEMPERATURE = 0
+MODEL_NAME = 'gpt-4'
+TEMPERATURE = 0.1
 
 def main():
     st.set_page_config(page_title="Chat With Any Files")
@@ -31,13 +31,26 @@ def main():
     initialize_session_state()
     
     with st.sidebar:
-        uploaded_files = st.file_uploader("Upload your file", type=['pdf', 'docx', 'xlsx'], accept_multiple_files=True)
-        openai_api_key = st.text_input("OpenAI API Key", key="chatbot_api_key", type="password")
+        uploaded_files = st.file_uploader("Upload your file", type=['pdf', 'docx'], accept_multiple_files=True)
+        
+        # API Key selection
+        api_key_option = st.radio("Choose API Key Option:", ("Use Default Key", "Enter My Own Key"))
+        
+        if api_key_option == "Enter My Own Key":
+            openai_api_key = st.text_input("OpenAI API Key", key="chatbot_api_key", type="password")
+        else:
+            openai_api_key = st.secrets.get("OPENAI_API_KEY", "")
+            if not openai_api_key:
+                st.warning("Default API key not found in secrets. Please enter your own key.")
+                openai_api_key = st.text_input("OpenAI API Key", key="chatbot_api_key", type="password")
+        
         process = st.button("Process")
 
     if process:
         if not uploaded_files:
             st.warning("Please upload at least one file before processing.")
+        elif not openai_api_key:
+            st.warning("Please provide an OpenAI API key to continue.")
         else:
             st.session_state.processing = True
             st.session_state.chat_history = []  # Clear chat history
